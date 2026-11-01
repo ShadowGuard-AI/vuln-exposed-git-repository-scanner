@@ -11,6 +11,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 TIMEOUT = 10
 
+# The ref paths name master, because that is the list this tool was built
+# with. A repo whose default branch is main still exposes HEAD and config,
+# but its logs/refs/heads/master probe normally answers 404 and counts as
+# failed, not as evidence either way.
 GIT_FILES = [
     "HEAD",
     "config",
@@ -48,6 +52,8 @@ def valid_head_body(content):
         text = content.decode("utf-8").strip()
     except UnicodeDecodeError:
         return False
+    # SHA_RE only allows lower case hex. A detached HEAD written with
+    # upper case letters fails this check and reads as not exposed.
     return text.startswith("ref:") or bool(SHA_RE.match(text))
 
 def valid_git_file(file_path, content):
@@ -76,6 +82,9 @@ def valid_git_file(file_path, content):
         tokens = first.split()
         return bool(tokens) and bool(SHA_RE.match(tokens[0]))
     if file_path == "description":
+        # The weakest check in the set, by necessity: a description file
+        # has no fixed shape, so anything non empty and non HTML passes.
+        # A catchall page in plain text would slip through this one file.
         return len(content.strip()) > 0
     return len(content) > 0
 
@@ -122,6 +131,9 @@ def download_git_files(url, output_dir, timeout=TIMEOUT):
 
     downloaded = 0
     failed = 0
+    # HEAD is fetched again here even though check_git_access just read
+    # it. I keep the two passes independent: this function must stand on
+    # its own counts, not on a response cached by the check.
     for file_path in GIT_FILES:
         full_url = urljoin(normalize_base(url), f".git/{file_path}")
         output_path = os.path.join(output_dir, file_path)
