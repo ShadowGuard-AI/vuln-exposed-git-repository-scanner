@@ -11,29 +11,32 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 TIMEOUT = 10
 
-# The ref paths name master, because that is the list this tool was built
-# with. A repo whose default branch is main still exposes HEAD and config,
-# but its logs/refs/heads/master probe normally answers 404 and counts as
-# failed, not as evidence either way.
+# The ref paths cover both master and main, the two default branch
+# names in wide use, so a repo whose default branch is main gets its
+# ref and reflog files probed as well as a master default repo. A ref
+# file for the other branch normally answers 404 and counts as failed,
+# not as evidence either way.
 GIT_FILES = [
     "HEAD",
     "config",
     "description",
     "index",
     "logs/HEAD",
+    "logs/refs/heads/main",
     "logs/refs/heads/master",
     "logs/refs/remotes/origin/HEAD",
+    "refs/heads/main",
     "refs/heads/master",
     "refs/remotes/origin/HEAD"
 ]
 
-SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 def setup_argparse():
     """
     Sets up the argument parser for the command-line interface.
     """
-    parser = argparse.ArgumentParser(description="Detects publicly accessible .git directories and downloads the nine fixed .git files it checks.")
+    parser = argparse.ArgumentParser(description="Detects publicly accessible .git directories and downloads the eleven fixed .git files it checks.")
     parser.add_argument("url", help="The base URL to scan for exposed .git directory.")
     parser.add_argument("-o", "--output", help="Output directory to save downloaded files.", default="output")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging (DEBUG level).")
@@ -52,8 +55,8 @@ def valid_head_body(content):
         text = content.decode("utf-8").strip()
     except UnicodeDecodeError:
         return False
-    # SHA_RE only allows lower case hex. A detached HEAD written with
-    # upper case letters fails this check and reads as not exposed.
+    # SHA_RE allows upper and lower case hex, so a detached HEAD
+    # written with upper case letters is still recognised.
     return text.startswith("ref:") or bool(SHA_RE.match(text))
 
 def valid_git_file(file_path, content):
@@ -117,7 +120,7 @@ def check_git_access(url, timeout=TIMEOUT):
 
 def download_git_files(url, output_dir, timeout=TIMEOUT):
     """
-    Attempts to download the nine fixed .git files, saving only bodies
+    Attempts to download the eleven fixed .git files, saving only bodies
     that pass the per file sanity check.
 
     Returns:
